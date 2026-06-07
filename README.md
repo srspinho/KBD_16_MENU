@@ -49,6 +49,11 @@ Este projeto transforma um **Raspberry Pi Pico (RP2040)** em um remapeador de te
 | TFT_RST    | GPIO 15           |
 | USB Host D+| GPIO 0 (ou conforme config) |
 | USB Host D-| GPIO 1 (ou conforme config) |
+| JOY_UP     | GPIO 2           |
+| JOY_DOWN   | GPIO 3           |
+| JOY_LEFT   | GPIO 6           |
+| JOY_RIGHT  | GPIO 5           |
+| JOY_OK     | GPIO 4 (SELECT)  |
 
 ## 💻 Bibliotecas Utilizadas
 
