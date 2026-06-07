@@ -64,8 +64,9 @@ Este projeto transforma um **Raspberry Pi Pico (RP2040)** em um remapeador de te
 
 1. Configure o ambiente Arduino para o Raspberry Pi Pico.
 2. Certifique-se de que a velocidade da CPU está em **120MHz** ou **240MHz** (necessário para USB Host).
-3. Instale as bibliotecas listadas acima.
-4. Carregue o código e conecte seu teclado na porta USB Host.
+3. Todos os arquivos precisam estar na mesma pasta
+4. Instale as bibliotecas listadas acima.
+5. Carregue o código e conecte seu teclado na porta USB Host.
 
 <p align="center">
   <img src="https://github.com/srspinho/KBD_16_MENU/blob/main/Prototipo.jpeg" width="400">
