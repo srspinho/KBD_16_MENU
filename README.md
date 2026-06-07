@@ -34,11 +34,6 @@ Este projeto transforma um **Raspberry Pi Pico (RP2040)** em um remapeador de te
 
 ## 📁 Estrutura de Conexão (Pinout)
 
-   #define TFT_RST   15
-   #define TFT_BL     9 // Se o BLK estiver no 9 como sugerido antes
-
-
-
 | Componente | Pino Pico (GPIO)  |
 |------------|-------------------|
 | TFT_MISO   | GPIO 12           |
@@ -47,6 +42,7 @@ Este projeto transforma um **Raspberry Pi Pico (RP2040)** em um remapeador de te
 | TFT_CS     | GPIO 13           |
 | TFT_DC     | GPIO 14           |
 | TFT_RST    | GPIO 15           |
+| TFT_BL     | VCC 3.3           |
 | USB Host D+| GPIO 0 (ou conforme config) |
 | USB Host D-| GPIO 1 (ou conforme config) |
 | JOY_UP     | GPIO 2           |
