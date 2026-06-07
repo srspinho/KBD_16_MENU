@@ -70,7 +70,7 @@ Este projeto transforma um **Raspberry Pi Pico (RP2040)** em um remapeador de te
 4. Carregue o código e conecte seu teclado na porta USB Host.
 
 <p align="center">
-  <img src="https://github.com/srspinho/KBD_16_MENU/Prototipo.jpg" width="400">
+  <img src="https://github.com/srspinho/KBD_16_MENU/blob/main/Prototipo.jpeg" width="400">
 </p>
 
 
