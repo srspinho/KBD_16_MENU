@@ -1,0 +1,2 @@
+#pragma once
+#define CFG_TUSB_MCU OPT_MCU_NONE

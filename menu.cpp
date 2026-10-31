@@ -1,438 +1,384 @@
 #include "menu.h"
-#include <EEPROM.h>
-#include <hardware/watchdog.h>  // <--- ADICIONE ESTA LINHA NO TOPO
+#include "display.h"
+#include "settings.h"
+#include "screensavers.h"
+#include "clock.h"
+#include "config.h"
 
-// Herda o canvas criado no programa principal para não duplicar memória
-extern TFT_eSprite canvas;
-
-// Inicializa as variáveis globais do menu
-Config config;
-MenuLevel current_menu_level = LEVEL_MAIN;
-int current_item_index = 0;
-bool is_editing_value = false;
-unsigned long last_debounce_time = 0;
-const unsigned long DEBOUNCE_DELAY = 150;
-
-// ==================== ITENS DOS MENUS ====================
-#define MAIN_MENU_COUNT 5
-const char* main_menu_items[MAIN_MENU_COUNT] = {
-  "Screensaver", "Configuracoes", "Produtividade", "Sistema", "Sair"
+// ===================================================================
+//  TIPOS
+// ===================================================================
+enum ItemType : uint8_t {
+  IT_SUBMENU,   // abre outro menu
+  IT_INT,       // valor numérico editável
+  IT_BOOL,      // liga/desliga
+  IT_SS_LIST,   // lista de screensavers (gerada da tabela)
+  IT_ACTION,    // executa uma função
+  IT_CLOCK_H,   // hora do relógio
+  IT_CLOCK_M,   // minuto do relógio
+  IT_BACK,      // volta (na raiz: fecha)
 };
 
-#define SS_MENU_COUNT 11
-const char* ss_menu_items[SS_MENU_COUNT] = {
-  "Atari", "Pong", "Asteroids", "Star Field", "Game of Life",
-  "Matrix", "Pac Man", "Fogos", "Aquario", "Todos", "Voltar"
+struct Menu;
+
+struct MenuItem {
+  const char *label;
+  ItemType type;
+  int16_t *value;
+  bool *flag;
+  int16_t min, max, step;
+  const char *unit;
+  const char *zero_text;  // texto exibido quando o valor é 0
+  const Menu *sub;
+  void (*action)();
+  bool confirm;           // pede confirmação (OK duas vezes)
 };
 
-#define CONFIG_MENU_COUNT 4
-const char* config_menu_items[CONFIG_MENU_COUNT] = {
-  "Veloc. Gradiente", "Qtd Asteroides", "Intensidade Cores", "Voltar"
+struct Menu {
+  const char *title;
+  const MenuItem *items;
+  uint8_t count;
 };
 
-#define PROD_MENU_COUNT 4
-const char* prod_menu_items[PROD_MENU_COUNT] = {
-  "Envio CTRL+Shift", "Intervalo", "Inicio", "Voltar"
+// Construtores curtos para deixar as tabelas legíveis
+static constexpr MenuItem SUB(const char *l, const Menu *m) {
+  return { l, IT_SUBMENU, nullptr, nullptr, 0, 0, 1, "", nullptr, m, nullptr, false };
+}
+static constexpr MenuItem INT(const char *l, int16_t *v, int16_t mn, int16_t mx, int16_t st,
+                              const char *u = "", const char *z = nullptr) {
+  return { l, IT_INT, v, nullptr, mn, mx, st, u, z, nullptr, nullptr, false };
+}
+static constexpr MenuItem BOOL(const char *l, bool *f) {
+  return { l, IT_BOOL, nullptr, f, 0, 0, 1, "", nullptr, nullptr, nullptr, false };
+}
+static constexpr MenuItem ACT(const char *l, void (*a)(), bool confirm = false) {
+  return { l, IT_ACTION, nullptr, nullptr, 0, 0, 1, "", nullptr, nullptr, a, confirm };
+}
+static constexpr MenuItem SPECIAL(const char *l, ItemType t) {
+  return { l, t, nullptr, nullptr, 0, 0, 1, "", nullptr, nullptr, nullptr, false };
+}
+#define COUNT(a) (uint8_t)(sizeof(a) / sizeof(a[0]))
+
+// ===================================================================
+//  TABELAS
+// ===================================================================
+static const MenuItem ITEMS_SS[] = {
+  SPECIAL("Tipo", IT_SS_LIST),
+  INT("Iniciar apos", &settings.ss_start_min, 0, 120, 1, "m", "Nunca"),
+  INT("Trocar a cada", &settings.ss_switch_s, 10, 600, 10, "s"),
+  INT("Velocidade", &settings.ss_speed, 1, 20, 1),
+  INT("Asteroides", &settings.ss_asteroids, 1, MAX_ASTEROIDS, 1),
+  INT("Cores", &settings.ss_color, 10, 100, 5, "%"),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_SS = { "SCREENSAVER", ITEMS_SS, COUNT(ITEMS_SS) };
+
+static const MenuItem ITEMS_TELA[] = {
+  INT("Brilho", &settings.brightness, 10, 100, 10, "%"),
+  INT("Brilho ocioso", &settings.dim_brightness, 0, 100, 10, "%"),
+  INT("Escurecer apos", &settings.dim_after_s, 0, 3600, 10, "s", "Nunca"),
+  BOOL("Girar 180", &settings.flip),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_TELA = { "TELA", ITEMS_TELA, COUNT(ITEMS_TELA) };
+
+static const MenuItem ITEMS_PROD[] = {
+  BOOL("Anti-bloqueio", &settings.antilock),
+  INT("Intervalo", &settings.antilock_s, 5, 600, 5, "s"),
+  ACT("Pomodoro >/||", action_pomo_start_pause),
+  ACT("Pomodoro zerar", action_pomo_reset),
+  INT("Foco", &settings.pomo_focus_min, 1, 120, 1, "m"),
+  INT("Pausa", &settings.pomo_break_min, 1, 60, 1, "m"),
+  INT("Lembrete pausa", &settings.break_remind_min, 0, 240, 5, "m", "Off"),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_PROD = { "PRODUTIVIDADE", ITEMS_PROD, COUNT(ITEMS_PROD) };
+
+static const MenuItem ITEMS_TECLADO[] = {
+  BOOL("Remapear", &settings.remap),
+  BOOL("Camada Fn", &settings.layer),
+  BOOL("Sinc. volume", &settings.vol_sync),
+  INT("Volume inicial", &settings.vol_sync_level, 0, 100, 2, "%"),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_TECLADO = { "TECLADO", ITEMS_TECLADO, COUNT(ITEMS_TECLADO) };
+
+static const MenuItem ITEMS_RELOGIO[] = {
+  SPECIAL("Hora", IT_CLOCK_H),
+  SPECIAL("Minuto", IT_CLOCK_M),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_RELOGIO = { "RELOGIO", ITEMS_RELOGIO, COUNT(ITEMS_RELOGIO) };
+
+static const MenuItem ITEMS_STATS[] = {
+  ACT("Zerar sessao", action_reset_session, true),
+  ACT("Zerar tudo", action_reset_all_stats, true),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_STATS = { "ESTATISTICAS", ITEMS_STATS, COUNT(ITEMS_STATS) };
+
+static const MenuItem ITEMS_SISTEMA[] = {
+  ACT("Sobre", action_about),
+  ACT("Reiniciar", action_reboot, true),
+  ACT("Restaurar padrao", action_factory_defaults, true),
+  ACT("Modo gravacao", action_bootloader, true),
+  SPECIAL("Voltar", IT_BACK),
+};
+static const Menu MENU_SISTEMA = { "SISTEMA", ITEMS_SISTEMA, COUNT(ITEMS_SISTEMA) };
+
+static const MenuItem ITEMS_MAIN[] = {
+  SUB("Screensaver", &MENU_SS),
+  SUB("Tela", &MENU_TELA),
+  SUB("Produtividade", &MENU_PROD),
+  SUB("Teclado", &MENU_TECLADO),
+  SUB("Relogio", &MENU_RELOGIO),
+  SUB("Estatisticas", &MENU_STATS),
+  SUB("Sistema", &MENU_SISTEMA),
+  SPECIAL("Sair", IT_BACK),
+};
+static const Menu MENU_MAIN = { "CONFIGURACOES", ITEMS_MAIN, COUNT(ITEMS_MAIN) };
+
+// ===================================================================
+//  ESTADO
+// ===================================================================
+#define VISIBLE_ROWS 5
+#define MENU_TIMEOUT_MS 30000UL
+
+struct Level {
+  const Menu *menu;  // nullptr = lista de screensavers
+  uint8_t index;
+  uint8_t top;
 };
 
-#define SISTEMA_MENU_COUNT 3
-const char* sistema_menu_items[SISTEMA_MENU_COUNT] = {
-  "Brilho", "Reset", "Voltar"
-};
+static Level stack[4];
+static int8_t depth = -1;   // -1 = menu fechado
+static bool editing = false;
+static int8_t confirm_index = -1;
+static uint32_t last_input = 0;
 
-// Protótipos internos locais
-void processar_acao(char botao);
-void executar_selecao();
-void ajustar_valor_variavel(int direcao);
-void executar_reset_placa();
+static Level &cur() { return stack[depth]; }
+static bool in_ss_list() { return cur().menu == nullptr; }
+static uint8_t item_count() { return in_ss_list() ? ss_count() + 1 : cur().menu->count; }
 
-void setup_menu() {
-  // Configura todos os pinos do joystick como INPUT_PULLUP
-  pinMode(JOY_UP, INPUT_PULLUP);
-  pinMode(JOY_DOWN, INPUT_PULLUP);
-  pinMode(JOY_LEFT, INPUT_PULLUP);
-  pinMode(JOY_RIGHT, INPUT_PULLUP);
-  pinMode(JOY_OK, INPUT_PULLUP);
-
-  carregar_configuracoes();
+static void scroll_to_index(Level &l) {
+  if (l.index < l.top) l.top = l.index;
+  if (l.index >= l.top + VISIBLE_ROWS) l.top = l.index - VISIBLE_ROWS + 1;
 }
 
-void atualizarBrilho() {
-#ifdef TFT_BL
-  int pwmValue = map(config.sistema_brilho, 0, 100, 0, 255);
-  analogWrite(TFT_BL, pwmValue);
-#endif
+void menu_open() {
+  depth = 0;
+  stack[0] = { &MENU_MAIN, 0, 0 };
+  editing = false;
+  confirm_index = -1;
+  last_input = millis();
 }
 
-void carregar_configuracoes() {
-  EEPROM.begin(512);
-  Config temporario;
-  EEPROM.get(0, temporario);
+void menu_close() {
+  depth = -1;
+  editing = false;
+  confirm_index = -1;
+}
 
-  if (temporario.assinatura == 0x5A) {
-    config = temporario;
-  } else {
-    config.assinatura = 0x5A;
-    config.ss_selecionado = SS_TODOS;
-    config.vel_gradiente = 5;
-    config.qtd_asteroides = 20;
-    config.intensidade_cores = 80;
-    config.envio_ctrl_shift = true;
-    config.prod_intervalo = 10;
-    config.prod_inicio = 5;
-    config.sistema_brilho = 100;
-    salvar_configuracoes();
+bool menu_is_open() { return depth >= 0; }
+
+static void push(const Menu *m) {
+  if (depth >= 3) return;
+  depth++;
+  stack[depth] = { m, 0, 0 };
+  if (m == nullptr) {  // lista de screensavers: começa no item selecionado
+    stack[depth].index = settings.ss_type;
+    scroll_to_index(stack[depth]);
   }
 }
 
-void salvar_configuracoes() {
-  EEPROM.put(0, config);
-  EEPROM.commit();
+// Volta um nível. O cursor do nível anterior continua onde estava.
+static void pop() {
+  editing = false;
+  if (depth <= 0) menu_close();
+  else depth--;
 }
 
-void tratar_botoes() {
-  if ((millis() - last_debounce_time) < DEBOUNCE_DELAY) return;
-
-  if (digitalRead(JOY_UP) == LOW) {
-    processar_acao('U');
-    last_debounce_time = millis();
-  } else if (digitalRead(JOY_DOWN) == LOW) {
-    processar_acao('D');
-    last_debounce_time = millis();
-  } else if (digitalRead(JOY_LEFT) == LOW) {
-    processar_acao('B');
-    last_debounce_time = millis();
-  }  // LEFT = Voltar
-  else if (digitalRead(JOY_RIGHT) == LOW) {
-    processar_acao('S');
-    last_debounce_time = millis();
-  }  // RIGHT = Selecionar
-  else if (digitalRead(JOY_OK) == LOW) {
-    processar_acao('S');
-    last_debounce_time = millis();
-  }  // OK = Selecionar
+static void clock_adjust(ItemType t, int dir) {
+  uint8_t h = 12, m = 0, s = 0;
+  if (clock_is_set()) clock_get(h, m, s);
+  if (t == IT_CLOCK_H) h = (h + 24 + dir) % 24;
+  else m = (m + 60 + dir) % 60;
+  clock_set(h, m, 0);
 }
 
-void processar_acao(char botao) {
-  // --- MODO EDIÇÃO DE VALOR (Modificando Brilho, Velocidade, etc.) ---
-  if (is_editing_value) {
-    switch (botao) {
-      case 'B':
-      case 'S':
-        is_editing_value = false;
-        salvar_configuracoes();
-        break;
-
-      case 'U':
-        ajustar_valor_variavel(1);
-        break;
-
-      case 'D':
-        ajustar_valor_variavel(-1);
-        break;
-    }
-    desenhar_menu();
-    canvas.pushSprite(0, 0);
+static void adjust(const MenuItem &it, int dir) {
+  if (it.type == IT_CLOCK_H || it.type == IT_CLOCK_M) {
+    clock_adjust(it.type, dir);
     return;
-  }  // <-- ESSA CHAVE FECHA O IF (is_editing_value). O ERRO ESTAVA DAQUI PARA BAIXO
-
-  // --- MODO NAVEGAÇÃO NORMAL (Andando pelos itens do Menu) ---
-  int limite_itens = 0;
-  switch (current_menu_level) {
-    case LEVEL_MAIN: limite_itens = MAIN_MENU_COUNT; break;
-    case LEVEL_SUB_SS: limite_itens = SS_MENU_COUNT; break;
-    case LEVEL_SUB_CONFIG: limite_itens = CONFIG_MENU_COUNT; break;
-    case LEVEL_SUB_PROD: limite_itens = PROD_MENU_COUNT; break;
-    case LEVEL_SUB_SISTEMA: limite_itens = SISTEMA_MENU_COUNT; break;
   }
-
-  // Executa os comandos de navegação respeitando o limite do menu atual
-  if (botao == 'U') {
-    current_item_index = (current_item_index <= 0) ? limite_itens - 1 : current_item_index - 1;
-  } else if (botao == 'D') {
-    current_item_index = (current_item_index >= limite_itens - 1) ? 0 : current_item_index + 1;
-  } else if (botao == 'B') {
-    if (current_menu_level != LEVEL_MAIN) {
-      current_menu_level = LEVEL_MAIN;
-      current_item_index = 0;
-    }
-    // Se for LEVEL_MAIN, não faz nada! Travado para não sair acidentalmente do menu.
-  } else if (botao == 'S') {
-    executar_selecao();
-  }
-
-  // Atualiza o display após a ação de navegação
-  desenhar_menu();
-  canvas.pushSprite(0, 0);
+  int v = *it.value + dir * it.step;
+  *it.value = constrain(v, it.min, it.max);
+  settings_mark_dirty();
 }
 
-/*
-void processar_acao(char botao) {
-  if (is_editing_value) {
-    if (botao == 'B' || botao == 'S') { is_editing_value = false; salvar_configuracoes(); } 
-    else if (botao == 'U') ajustar_valor_variavel(1); 
-    else if (botao == 'D') ajustar_valor_variavel(-1);
-    desenhar_menu();
+// IMPORTANTE: o índice do item NÃO é zerado ao editar/alternar
+// (era o bug da versão anterior, em que só o 1º item podia ser editado).
+static void select_item() {
+  uint8_t i = cur().index;
+  if (in_ss_list()) {
+    settings.ss_type = i;
+    settings_mark_dirty();
+    return;
+  }
+  const MenuItem &it = cur().menu->items[i];
+  switch (it.type) {
+    case IT_SUBMENU: push(it.sub); break;
+    case IT_SS_LIST: push(nullptr); break;
+    case IT_INT:
+    case IT_CLOCK_H:
+    case IT_CLOCK_M: editing = true; break;
+    case IT_BOOL:
+      *it.flag = !*it.flag;
+      settings_mark_dirty();
+      break;
+    case IT_ACTION:
+      if (it.confirm && confirm_index != (int8_t)i) {
+        confirm_index = i;  // pede confirmação: OK de novo executa
+        return;
+      }
+      confirm_index = -1;
+      if (it.action) it.action();
+      break;
+    case IT_BACK: pop(); break;
+  }
+}
+
+void menu_handle(const BtnEvent &ev) {
+  if (!menu_is_open()) return;
+  last_input = millis();
+
+  if (editing) {
+    const MenuItem &it = cur().menu->items[cur().index];
+    if (ev.btn == BTN_UP) adjust(it, +1);
+    else if (ev.btn == BTN_DOWN) adjust(it, -1);
+    else if (!ev.repeat) editing = false;  // OK / Esquerda / Direita confirmam
     return;
   }
 
-  int limite_itens = 0;
-  switch (current_menu_level) {
-    case LEVEL_MAIN:        limite_itens = MAIN_MENU_COUNT; break;
-    case LEVEL_SUB_SS:      limite_itens = SS_MENU_COUNT; break;
-    case LEVEL_SUB_CONFIG:  limite_itens = CONFIG_MENU_COUNT; break;
-    case LEVEL_SUB_PROD:    limite_itens = PROD_MENU_COUNT; break;
-    case LEVEL_SUB_SISTEMA: limite_itens = SISTEMA_MENU_COUNT; break;
+  // Qualquer botão que não seja OK/Direita cancela a confirmação pendente
+  bool was_confirming = confirm_index >= 0;
+  if (ev.btn != BTN_OK && ev.btn != BTN_RIGHT) confirm_index = -1;
+
+  uint8_t n = item_count();
+  Level &l = cur();
+  switch (ev.btn) {
+    case BTN_UP:
+      // Na repetição (botão segurado) para no topo em vez de dar a volta
+      l.index = (l.index == 0) ? (ev.repeat ? 0 : n - 1) : l.index - 1;
+      break;
+    case BTN_DOWN:
+      l.index = (l.index + 1 >= n) ? (ev.repeat ? n - 1 : 0) : l.index + 1;
+      break;
+    case BTN_LEFT:
+      if (!ev.repeat && !was_confirming) pop();
+      break;
+    case BTN_OK:
+    case BTN_RIGHT:
+      if (!ev.repeat) select_item();
+      break;
+    default: break;
   }
-
-  if (botao == 'U') { current_item_index = (current_item_index <= 0) ? limite_itens - 1 : current_item_index - 1; } 
-  else if (botao == 'D') { current_item_index = (current_item_index >= limite_itens - 1) ? 0 : current_item_index + 1; } 
-  else if (botao == 'B') { if (current_menu_level != LEVEL_MAIN) { current_menu_level = LEVEL_MAIN; current_item_index = 0; } } 
-  else if (botao == 'S') { executar_selecao(); }
-
-  desenhar_menu();
+  if (menu_is_open()) scroll_to_index(cur());
 }
-*/
 
-/*
-void executar_selecao() {
-  switch (current_menu_level) {
-    case LEVEL_MAIN:
-      if (current_item_index == 0) {
-        current_menu_level = LEVEL_SUB_SS;
-      } else if (current_item_index == 1) {
-        current_menu_level = LEVEL_SUB_CONFIG;
-      } else if (current_item_index == 2) {
-        current_menu_level = LEVEL_SUB_PROD;
-      } else if (current_item_index == 3) {
-        current_menu_level = LEVEL_SUB_SISTEMA;
-      } else if (current_item_index == 4) {  // "Sair"
-        g_em_modo_menu = false;
-        current_menu_level = LEVEL_MAIN;
-        current_item_index = 0;
-
-        desalocar_sprite_menu();
-
-        firstDrawAfterSS = true;
-        g_display_dirty = true;
-
-        // === ESPERA O BOTÃO SER SOLTO PARA EVITAR REENTRADA ===
-        unsigned long timeout = millis() + 800;
-        while ((digitalRead(BOTAO_SELECT) == LOW || digitalRead(BOTAO_BACK) == LOW) && millis() < timeout) {
-          delay(10);
-        }
-
-        return;
-      }
-      current_item_index = 0;
-      break;
-
-    case LEVEL_SUB_SS:
-      config.ss_selecionado = current_item_index;
-      salvar_configuracoes();
-      break;
-
-    case LEVEL_SUB_CONFIG:
-    case LEVEL_SUB_PROD:
-    case LEVEL_SUB_SISTEMA:
-      is_editing_value = true;
-      break;
-  }
+void menu_update() {
+  if (menu_is_open() && millis() - last_input > MENU_TIMEOUT_MS) menu_close();
 }
-*/
 
-void executar_selecao() {
-  bool redraw = true;
-
-  switch (current_menu_level) {
-    case LEVEL_MAIN:
-      if (current_item_index == 0) current_menu_level = LEVEL_SUB_SS;
-      else if (current_item_index == 1) current_menu_level = LEVEL_SUB_CONFIG;
-      else if (current_item_index == 2) current_menu_level = LEVEL_SUB_PROD;
-      else if (current_item_index == 3) current_menu_level = LEVEL_SUB_SISTEMA;
-      else if (current_item_index == 4) {           // Sair do menu principal
-        g_em_modo_menu = false;
-        current_menu_level = LEVEL_MAIN;
-        current_item_index = 0;
-        desalocar_sprite_menu();
-        firstDrawAfterSS = true;
-        g_display_dirty = true;
-
-        unsigned long timeout = millis() + 800;
-        while ((digitalRead(JOY_OK) == LOW) && millis() < timeout) delay(10);
-        return;
-      }
-      current_item_index = 0;
+// ===================================================================
+//  DESENHO
+// ===================================================================
+static void value_text(const MenuItem &it, char *buf, size_t n) {
+  buf[0] = 0;
+  uint8_t h, m, s;
+  switch (it.type) {
+    case IT_INT:
+      if (*it.value == 0 && it.zero_text) snprintf(buf, n, "%s", it.zero_text);
+      else snprintf(buf, n, "%d%s", *it.value, it.unit);
       break;
-
-    case LEVEL_SUB_SS:
-      if (current_item_index == SS_MENU_COUNT - 1) {           // "Voltar"
-        current_menu_level = LEVEL_MAIN;
+    case IT_BOOL: snprintf(buf, n, "%s", *it.flag ? "ON" : "OFF"); break;
+    case IT_SS_LIST:
+      snprintf(buf, n, "%s", settings.ss_type >= ss_count() ? "Todos" : ss_get(settings.ss_type).name);
+      break;
+    case IT_CLOCK_H:
+    case IT_CLOCK_M:
+      if (!clock_is_set()) {
+        snprintf(buf, n, "--");
       } else {
-        config.ss_selecionado = current_item_index;
-        salvar_configuracoes();
+        clock_get(h, m, s);
+        snprintf(buf, n, "%02u", it.type == IT_CLOCK_H ? h : m);
       }
-      current_item_index = 0;
       break;
-
-    case LEVEL_SUB_CONFIG:
-      if (current_item_index == CONFIG_MENU_COUNT - 1) {       // "Voltar"
-        current_menu_level = LEVEL_MAIN;
-      } else {
-        is_editing_value = true;
-      }
-      current_item_index = 0;
-      break;
-
-    case LEVEL_SUB_PROD:
-      if (current_item_index == PROD_MENU_COUNT - 1) {         // "Voltar"
-        current_menu_level = LEVEL_MAIN;
-      } else if (current_item_index == 0) {
-        config.envio_ctrl_shift = !config.envio_ctrl_shift;
-        salvar_configuracoes();
-      } else {
-        is_editing_value = true;
-      }
-      current_item_index = 0;
-      break;
-
-    case LEVEL_SUB_SISTEMA:
-      if (current_item_index == SISTEMA_MENU_COUNT - 1) {      // "Voltar"
-        current_menu_level = LEVEL_MAIN;
-      } else if (current_item_index == 0) {
-        is_editing_value = true;      // Brilho
-      } else if (current_item_index == 1) {
-        salvar_configuracoes();
-        executar_reset_placa();
-        return;
-      }
-      current_item_index = 0;
-      break;
-  }
-
-  if (redraw) {
-    desenhar_menu();
-    canvas.pushSprite(0, 0);
+    case IT_SUBMENU: snprintf(buf, n, ">"); break;
+    default: break;
   }
 }
 
-void ajustar_valor_variavel(int direcao) {
-  if (current_menu_level == LEVEL_SUB_CONFIG) {
-    if (current_item_index == 0) config.vel_gradiente = constrain(config.vel_gradiente + direcao, 1, 20);
-    else if (current_item_index == 1) config.qtd_asteroides = constrain(config.qtd_asteroides + direcao, 0, 100);
-    else if (current_item_index == 2) config.intensidade_cores = constrain(config.intensidade_cores + direcao, 0, 100);
-  } else if (current_menu_level == LEVEL_SUB_PROD) {
-    if (current_item_index == 1) config.prod_intervalo = constrain(config.prod_intervalo + direcao, 1, 60);
-    else if (current_item_index == 2) config.prod_inicio = constrain(config.prod_inicio + direcao, 0, 60);
-  } else if (current_menu_level == LEVEL_SUB_SISTEMA) {
-    if (current_item_index == 0) {
-      config.sistema_brilho = constrain(config.sistema_brilho + (direcao * 10), 0, 100);
-      atualizarBrilho();  // ← ADICIONE ESTA LINHA
-    }
-  }
-}
-
-void desenhar_menu() {
-
-  // --- REDIMENSIONAMENTO SEGURO DA MEMÓRIA RAM ---
-  canvas.deleteSprite();         // Apaga o sprite pequeno do minigráfico
-  canvas.createSprite(160, 80);  // Aloca o tamanho total da tela para o Menu
-  canvas.fillSprite(TFT_BLACK);  // Limpa o fundo
-
-  const char* titulo = "MENU";
-  int total_itens = 0;
-  const char** itens_ponteiro = NULL;
-
-  switch (current_menu_level) {
-    case LEVEL_MAIN:
-      titulo = "CONFIGURACOES";
-      total_itens = MAIN_MENU_COUNT;
-      itens_ponteiro = main_menu_items;
-      break;
-    case LEVEL_SUB_SS:
-      titulo = "SCREENSAVER";
-      total_itens = SS_MENU_COUNT;
-      itens_ponteiro = ss_menu_items;
-      break;
-    case LEVEL_SUB_CONFIG:
-      titulo = "AJUSTES";
-      total_itens = CONFIG_MENU_COUNT;
-      itens_ponteiro = config_menu_items;
-      break;
-    case LEVEL_SUB_PROD:
-      titulo = "PRODUTIVIDADE";
-      total_itens = PROD_MENU_COUNT;
-      itens_ponteiro = prod_menu_items;
-      break;
-    case LEVEL_SUB_SISTEMA:
-      titulo = "SISTEMA";
-      total_itens = SISTEMA_MENU_COUNT;
-      itens_ponteiro = sistema_menu_items;
-      break;
-  }
-
-  canvas.setTextFont(1);
-  canvas.setTextColor(TFT_YELLOW, TFT_BLACK);
-  canvas.drawString(titulo, 6, 2);
-  canvas.drawFastHLine(0, 12, 160, TFT_DARKGREY);
-
-  int item_inicial = (current_item_index >= 4) ? current_item_index - 3 : 0;
-  int y_pos = 16;
-
-  for (int i = item_inicial; i < min(item_inicial + 4, total_itens); i++) {
-    bool is_selected = (i == current_item_index);
-    if (is_selected) {
-      canvas.fillRoundRect(2, y_pos - 2, 156, 13, 3, is_editing_value ? TFT_RED : TFT_BLUE);
-      canvas.setTextColor(TFT_WHITE, is_editing_value ? TFT_RED : TFT_BLUE);
-      canvas.drawString(">", 6, y_pos);
-    } else {
-      canvas.setTextColor(TFT_WHITE, TFT_BLACK);
-    }
-
-    canvas.drawString(itens_ponteiro[i], 16, y_pos);
-    char val_buf[10] = "";
-    int x_box = 125;
-    int w_box = 30;
-    uint16_t cor_borda_box = is_selected ? TFT_WHITE : TFT_DARKGREY;
-
-    if (current_menu_level == LEVEL_SUB_SS) {
-      canvas.drawRoundRect(138, y_pos - 2, 16, 12, 2, cor_borda_box);
-      if (config.ss_selecionado == i) canvas.fillCircle(145, y_pos + 3, 3, is_selected ? TFT_WHITE : TFT_YELLOW);
-    } else if (current_menu_level == LEVEL_SUB_CONFIG) {
-      if (i == 0) sprintf(val_buf, "%d", config.vel_gradiente);
-      else if (i == 1) sprintf(val_buf, "%d", config.qtd_asteroides);
-      else if (i == 2) sprintf(val_buf, "%d", config.intensidade_cores);
-      canvas.drawRoundRect(x_box, y_pos - 2, w_box, 12, 2, cor_borda_box);
-      canvas.drawRightString(val_buf, 150, y_pos, 1);
-    } else if (current_menu_level == LEVEL_SUB_PROD) {
-      if (i == 0) {
-        canvas.drawRoundRect(138, y_pos - 2, 16, 12, 2, cor_borda_box);
-        if (config.envio_ctrl_shift) canvas.fillCircle(145, y_pos + 3, 3, is_selected ? TFT_WHITE : TFT_YELLOW);
-      } else {
-        sprintf(val_buf, "%d", (i == 1) ? config.prod_intervalo : config.prod_inicio);
-        canvas.drawRoundRect(x_box, y_pos - 2, w_box, 12, 2, cor_borda_box);
-        canvas.drawRightString(val_buf, 150, y_pos, 1);
-      }
-    } else if (current_menu_level == LEVEL_SUB_SISTEMA) {
-      if (i == 0) {
-        sprintf(val_buf, "%d%%", config.sistema_brilho);
-        canvas.drawRoundRect(x_box - 5, y_pos - 2, w_box + 5, 12, 2, cor_borda_box);
-        canvas.drawRightString(val_buf, 151, y_pos, 1);
-      }
-    }
-    y_pos += 15;
-  }
-  canvas.pushSprite(0, 0);
-}
-
-void executar_reset_placa() {
+void menu_draw() {
+  if (!menu_is_open()) return;
   canvas.fillSprite(TFT_BLACK);
-  canvas.setTextColor(TFT_RED);
-  canvas.drawString("REINICIANDO...", 35, 35);
-  canvas.pushSprite(0, 0);
-  delay(1000);  // Dá tempo para o usuário ler a mensagem na tela
+  canvas.setTextFont(1);
+  canvas.setTextSize(1);
+  canvas.setTextDatum(TL_DATUM);
 
-  // Executa o reboot nativo de hardware do RP2040/RP2350
-  // Parâmetros: (tempo de delay antes do boot em ms, imagem de boot, fonte)
-  watchdog_reboot(0, 0, 0);
+  const char *title = in_ss_list() ? "SCREENSAVER: TIPO" : cur().menu->title;
+  canvas.setTextColor(TFT_YELLOW);
+  canvas.drawString(title, 4, 2);
+  if (clock_is_set()) {
+    char hb[8];
+    clock_format(hb, sizeof(hb));
+    canvas.setTextColor(TFT_DARKGREY);
+    canvas.setTextDatum(TR_DATUM);
+    canvas.drawString(hb, SCREEN_W - 3, 2);
+    canvas.setTextDatum(TL_DATUM);
+  }
+  canvas.drawFastHLine(0, 12, SCREEN_W, TFT_DARKGREY);
+
+  uint8_t n = item_count();
+  const Level &l = cur();
+  int y = 15;
+  for (uint8_t i = l.top; i < n && i < l.top + VISIBLE_ROWS; i++, y += 13) {
+    bool sel = (i == l.index);
+    bool confirming = sel && confirm_index == (int8_t)i;
+    uint16_t bg = TFT_BLACK;
+    if (sel) {
+      bg = confirming ? TFT_MAROON : (editing ? TFT_RED : TFT_BLUE);
+      canvas.fillRoundRect(1, y - 2, SCREEN_W - 7, 12, 3, bg);
+    }
+    canvas.setTextColor(TFT_WHITE, bg);
+
+    char val[16];
+    const char *label;
+    if (in_ss_list()) {
+      label = (i == ss_count()) ? "Todos" : ss_get(i).name;
+      canvas.drawCircle(SCREEN_W - 16, y + 3, 3, sel ? TFT_WHITE : TFT_DARKGREY);
+      if (settings.ss_type == i) canvas.fillCircle(SCREEN_W - 16, y + 3, 2, sel ? TFT_WHITE : TFT_YELLOW);
+      val[0] = 0;
+    } else {
+      const MenuItem &it = l.menu->items[i];
+      label = confirming ? "Confirmar? OK" : it.label;
+      value_text(it, val, sizeof(val));
+    }
+    canvas.drawString(label, 6, y);
+    if (val[0]) {
+      canvas.setTextDatum(TR_DATUM);
+      canvas.setTextColor(sel ? TFT_WHITE : TFT_CYAN, bg);
+      canvas.drawString(val, SCREEN_W - 10, y);
+      canvas.setTextDatum(TL_DATUM);
+    }
+  }
+
+  // Barra de rolagem
+  if (n > VISIBLE_ROWS) {
+    int track = SCREEN_H - 15;
+    int h = max(6, track * VISIBLE_ROWS / n);
+    int pos = 14 + (track - h) * l.top / (n - VISIBLE_ROWS);
+    canvas.drawFastVLine(SCREEN_W - 3, 14, track, TFT_DARKGREY);
+    canvas.fillRect(SCREEN_W - 4, pos, 3, h, TFT_LIGHTGREY);
+  }
 }
