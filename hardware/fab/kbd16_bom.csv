@@ -1,0 +1,23 @@
+Qtd,Referências,Valor,Descrição,Peça sugerida,Footprint
+1,U1,RP2350-Zero,Waveshare RP2350-Zero (ou RP2040-Zero),Waveshare RP2350-Zero,RP2350-Zero
+1,J1,USB-A Teclado,Receptáculo USB-A horizontal THT,Molex 67643-0910,USB_A_Molex_67643_Horizontal
+1,F1,500mA,Fusível rearmável 500 mA hold,1206L050,Fuse_1206_3216Metric
+1,C1,10uF,Capacitor cerâmico 10 µF 10 V X5R,,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder
+1,U2,USBLC6-2SC6,Proteção ESD USB,USBLC6-2SC6,SOT-23-6
+2,R1 R2,22,Resistor série D+ / Resistor série D-,,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder
+1,J2,LCD 0.96 80x160,"Barra fêmea 1x8 2,54 mm para o módulo LCD ST7735",,LCD_0.96_80x160_Socket
+1,R3,100,Resistor série do backlight (GPIO7 -> BLK),,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder
+2,C2 C3,100nF,Desacoplamento 3V3 do LCD / Desacoplamento do RTC,,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder
+1,J3,Joystick 5 vias,"Barra fêmea 1x6 para o joystick (COM, CIMA, BAIXO, ESQ, DIR, OK)",,PinSocket_1x06_P2.54mm_Vertical
+6,R4 R5 R6 R7 R8 R12,10k,Pull-up do joystick / Pull-down de base (buzzer mudo no boot),,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder
+1,U3,DS3231,RTC DS3231SN ou DS3231M (opcional),DS3231SN#,SOIC-16W_7.5x10.3mm_P1.27mm
+1,BT1,CR1220,Suporte de bateria CR1220,Keystone 3000,BatteryHolder_Keystone_3000_1x12mm
+2,R9 R10,4.7k,Pull-up I2C SDA / Pull-up I2C SCL,,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder
+1,BZ1,Buzzer,"Buzzer magnético passivo 12 mm, 5 V",TMB12A05 (passivo),Buzzer_12x9.5RM7.6
+1,Q1,MMBT3904,Driver do buzzer,MMBT3904,SOT-23
+1,R11,1k,Resistor de base,,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder
+1,D1,1N4148W,Diodo de roda livre do buzzer,1N4148W,D_SOD-123
+2,(U1),"1x9 fêmea 2,54 mm",Barras para encaixar o RP2350-Zero (ou solde o módulo direto com barras macho),,
+1,(U1),"1x5 fêmea 2,54 mm",Barra da fileira de baixo do RP2350-Zero (GP9-GP13),,
+1,(BT1),CR1220,Bateria do RTC (opcional),,
+4,(H1-H4),M3,Parafusos M3 + espaçadores de 10 mm,,

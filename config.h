@@ -45,7 +45,8 @@
 
 // ==================== BUZZER (opcional) ====================
 // Buzzer passivo para os alertas (Pomodoro / pausa). -1 = sem buzzer.
-#define PIN_BUZZER -1
+// Na placa KiCad (pasta hardware/) o buzzer fica no GP8, via transistor.
+#define PIN_BUZZER 8
 
 // ==================== TECLA DA CAMADA (Fn) ====================
 // Segurando esta tecla, H/J/K/L viram setas etc. (ver keymap.cpp).

@@ -110,7 +110,23 @@ O dispositivo **não consegue obter a hora do PC sem um programa rodando no PC**
 
 ## 🛠️ Hardware
 
-- **Microcontrolador:** RP2040 (testado no Waveshare RP2040-Zero) ou RP2350.
+### Placa de circuito impresso (KiCad)
+
+A pasta [`hardware/`](hardware/README.md) tem o projeto KiCad completo de uma placa-base para o **Waveshare RP2350-Zero** (ou RP2040-Zero). Ela inclui:
+- USB-A do teclado com fusível e proteção ESD;
+- soquete do LCD e do joystick;
+- RTC DS3231 com bateria;
+- buzzer.
+
+Também traz os Gerbers prontos para encomendar, a lista de componentes e o esquemático em PDF.
+
+<p align="center">
+  <img src="hardware/img/placa_frente.png" width="500">
+</p>
+
+### Componentes
+
+- **Microcontrolador:** RP2040 (testado no Waveshare RP2040-Zero) ou RP2350 (Waveshare RP2350-Zero).
 - **Display:** TFT ST7735 0,96" 160x80 (SPI).
 - **USB host:** conector USB-C/A para o teclado via PIO-USB.
 - **Joystick de 5 botões** (4 direções + OK), com o pino comum no GND.
@@ -137,7 +153,7 @@ O dispositivo **não consegue obter a hora do PC sem um programa rodando no PC**
 | JOY_LEFT | 6 | |
 | RTC SDA *(opcional)* | 26 | I2C1 |
 | RTC SCL *(opcional)* | 27 | I2C1 |
-| Buzzer *(opcional)* | — | defina `PIN_BUZZER` em `config.h` |
+| Buzzer *(opcional)* | 8 | via transistor; `PIN_BUZZER` em `config.h` (-1 = sem buzzer) |
 
 Todos os pinos (exceto os do display) ficam em **`config.h`**.
 
@@ -149,7 +165,8 @@ Todos os pinos (exceto os do display) ficam em **`config.h`**.
    - [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI): use um *User_Setup* para ST7735 160x80 (ex.: `Setup43_ST7735.h`) com os pinos da tabela acima
    - O Adafruit TinyUSB já vem com o core.
 3. Em *Ferramentas*:
-   - **CPU Speed:** 120 MHz ou 240 MHz (múltiplo de 12 MHz, exigido pelo USB host). Com um clock inválido, a tela mostra um erro explicando.
+   - **Placa:** Waveshare RP2350 Zero (ou Waveshare RP2040 Zero)
+   - **CPU Speed:** **120 MHz** (múltiplo de 12 MHz, exigido pelo USB host). No RP2350 o padrão é 150 MHz, que **não funciona**. Com um clock inválido, a tela mostra um erro explicando.
    - **USB Stack:** Adafruit TinyUSB
 4. A pasta do projeto precisa ter o **mesmo nome do `.ino`**: `KBD_COLOR_16_MENU`.
 5. Grave e conecte o teclado na porta USB host.

@@ -6,8 +6,9 @@
  *  Core 1: USB host do teclado e envios para o PC      (usb_bridge.cpp)
  *
  * Configurações da placa (Arduino IDE):
- *   Placa:      Waveshare RP2040 Zero (ou a sua placa RP2040/RP2350)
- *   CPU Speed:  120 MHz ou 240 MHz (múltiplo de 12 MHz, exigido pelo PIO-USB)
+ *   Placa:      Waveshare RP2350 Zero (ou Waveshare RP2040 Zero)
+ *   CPU Speed:  120 MHz (múltiplo de 12 MHz, exigido pelo PIO-USB).
+ *               ATENÇÃO: no RP2350 o padrão é 150 MHz, que NÃO funciona.
  *   USB Stack:  Adafruit TinyUSB
  *
  * Pinos e opções de hardware: config.h
