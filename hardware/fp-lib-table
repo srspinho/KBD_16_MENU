@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "kbd16")(type "KiCad")(uri "${KIPRJMOD}/lib/kbd16.pretty")(options "")(descr "Footprints do projeto KBD16"))
+)
