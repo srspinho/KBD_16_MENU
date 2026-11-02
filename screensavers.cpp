@@ -11,6 +11,7 @@
 #include "config.h"
 #include "atari.h"
 #include "RobotoMono12pt7b.h"
+#include "pong_game.h"
 
 static uint8_t color_offset = 0;
 
@@ -42,113 +43,54 @@ static void atari_frame() {
 }
 
 // ===================================================================
-//  BOLAS (3 bolas quicando)
+//  PONG (simulação do jogo clássico: física e "IA" em pong_game.cpp)
 // ===================================================================
-struct Ball { float x, y, dx, dy; };
-static Ball balls[3];
+static PongGame pong;
+static_assert(PongGame::W == SCREEN_W && PongGame::H == SCREEN_H, "Pong: campo diferente da tela");
 
-static void balls_init() {
-  for (auto &b : balls) {
-    b.x = random(15, SCREEN_W - 15);
-    b.y = random(10, SCREEN_H - 10);
-    b.dx = frand(1.4f, 2.6f) * (random(2) ? 1 : -1);
-    b.dy = frand(1.2f, 2.2f) * (random(2) ? 1 : -1);
+// Dígitos "blocados" 3x5 do placar, no estilo do Pong original
+static const uint16_t PONG_DIGITS[10] = {
+  0b111101101101111, 0b001001001001001, 0b111001111100111, 0b111001111001111, 0b101101111001001,
+  0b111100111001111, 0b111100111101111, 0b111001001001001, 0b111101111101111, 0b111101111001111,
+};
+
+static void pong_digit(int d, int x, int y, int cell, uint16_t color) {
+  for (int r = 0; r < 5; r++)
+    for (int c = 0; c < 3; c++)
+      if (PONG_DIGITS[d] & (1 << (14 - (r * 3 + c))))
+        canvas.fillRect(x + c * cell, y + r * cell, cell, cell, color);
+}
+
+// Placar alinhado à direita (lado esquerdo) ou à esquerda (lado direito) da rede
+static void pong_score(int value, int side, uint16_t color) {
+  const int cell = 3, w = 3 * cell, gap = 3, y = 3;
+  int ndig = value >= 10 ? 2 : 1;
+  int total = ndig * w + (ndig - 1) * gap;
+  int x = side == 0 ? SCREEN_W / 2 - 8 - total : SCREEN_W / 2 + 8;
+  if (ndig == 2) {
+    pong_digit(value / 10, x, y, cell, color);
+    x += w + gap;
   }
+  pong_digit(value % 10, x, y, cell, color);
 }
 
-static void balls_frame() {
-  clear();
-  color_offset += 2;
-  const float R = 5;
-  for (int i = 0; i < 3; i++) {
-    Ball &b = balls[i];
-    b.x += b.dx;
-    b.y += b.dy;
-    // Quica com um pouco de variação, mas com a velocidade limitada
-    // (antes ela crescia 7% a cada batida até as bolas sumirem).
-    if (b.x < R || b.x > SCREEN_W - R) {
-      b.dx = -b.dx * frand(0.95f, 1.08f);
-      b.x = constrain(b.x, R, SCREEN_W - R);
-    }
-    if (b.y < R || b.y > SCREEN_H - R) {
-      b.dy = -b.dy * frand(0.95f, 1.08f);
-      b.y = constrain(b.y, R, SCREEN_H - R);
-    }
-    b.dx = constrain(fabsf(b.dx), 1.0f, 3.5f) * (b.dx < 0 ? -1 : 1);
-    b.dy = constrain(fabsf(b.dy), 0.8f, 3.0f) * (b.dy < 0 ? -1 : 1);
-
-    uint16_t cor = rainbow((uint8_t)((int)(b.x + b.y) + color_offset + i * 85));
-    canvas.fillCircle((int)b.x, (int)b.y, (int)R, cor);
-    canvas.fillCircle((int)b.x - 1, (int)b.y - 1, 2, TFT_WHITE);
-  }
-}
-
-// ===================================================================
-//  PONG (dois jogadores automáticos)
-// ===================================================================
-static float pong_bx, pong_by, pong_dx, pong_dy;
-static float pong_p1, pong_p2;
-static int pong_err1, pong_err2;
-static uint8_t pong_s1, pong_s2;
-static const int PADDLE_H = 16;
-
-static void pong_serve(int dir) {
-  pong_bx = SCREEN_W / 2;
-  pong_by = random(20, SCREEN_H - 20);
-  pong_dx = 1.8f * dir;
-  pong_dy = frand(-1.3f, 1.3f);
-  pong_err1 = random(-6, 7);
-  pong_err2 = random(-6, 7);
-}
-
-static void pong_init() {
-  pong_p1 = pong_p2 = (SCREEN_H - PADDLE_H) / 2;
-  pong_s1 = pong_s2 = 0;
-  pong_serve(random(2) ? 1 : -1);
-}
-
-static void pong_move_paddle(float &p, int err, bool coming) {
-  float target = (coming ? pong_by : SCREEN_H / 2) - PADDLE_H / 2 + err;
-  float speed = coming ? 1.9f : 0.8f;
-  if (p < target - 1) p += speed;
-  else if (p > target + 1) p -= speed;
-  p = constrain(p, 0, SCREEN_H - PADDLE_H);
-}
+static void pong_init() { pong.reset((uint32_t)random(1, 0x7FFFFFFF)); }
 
 static void pong_frame() {
-  pong_bx += pong_dx;
-  pong_by += pong_dy;
-  if (pong_by < 1 || pong_by > SCREEN_H - 3) pong_dy = -pong_dy;
-
-  pong_move_paddle(pong_p1, pong_err1, pong_dx < 0);
-  pong_move_paddle(pong_p2, pong_err2, pong_dx > 0);
-
-  if (pong_dx < 0 && pong_bx <= 6 && pong_by + 3 >= pong_p1 && pong_by <= pong_p1 + PADDLE_H) {
-    pong_dx = min(fabsf(pong_dx) * 1.08f, 4.0f);
-    pong_dy += (pong_by - (pong_p1 + PADDLE_H / 2)) * 0.12f;
-    pong_err2 = random(-10, 11);  // erro do adversário na próxima jogada
-  }
-  if (pong_dx > 0 && pong_bx >= SCREEN_W - 9 && pong_by + 3 >= pong_p2 && pong_by <= pong_p2 + PADDLE_H) {
-    pong_dx = -min(fabsf(pong_dx) * 1.08f, 4.0f);
-    pong_dy += (pong_by - (pong_p2 + PADDLE_H / 2)) * 0.12f;
-    pong_err1 = random(-10, 11);
-  }
-  pong_dy = constrain(pong_dy, -2.2f, 2.2f);
-
-  if (pong_bx < -4) { pong_s2++; pong_serve(1); }
-  if (pong_bx > SCREEN_W + 4) { pong_s1++; pong_serve(-1); }
-  if (pong_s1 > 9 || pong_s2 > 9) pong_init();
-
+  pong.step();
   clear();
-  for (int y = 0; y < SCREEN_H; y += 8) canvas.drawFastVLine(SCREEN_W / 2, y, 4, TFT_DARKGREY);
-  small_font();
-  canvas.setTextSize(2);
-  canvas.setTextColor(TFT_DARKGREY);
-  canvas.drawNumber(pong_s1, SCREEN_W / 2 - 22, 2);
-  canvas.drawNumber(pong_s2, SCREEN_W / 2 + 12, 2);
-  canvas.fillRect(2, (int)pong_p1, 3, PADDLE_H, TFT_WHITE);
-  canvas.fillRect(SCREEN_W - 5, (int)pong_p2, 3, PADDLE_H, TFT_WHITE);
-  canvas.fillRect((int)pong_bx, (int)pong_by, 3, 3, TFT_WHITE);
+  // rede tracejada
+  for (int y = 1; y < SCREEN_H; y += 6) canvas.fillRect(SCREEN_W / 2 - 1, y, 2, 3, TFT_DARKGREY);
+  // placar (o do vencedor pisca no fim da partida)
+  int win = pong.winner();
+  bool blink = (pong.timer() / 10) % 2;
+  for (int s = 0; s < 2; s++)
+    if (!(win == s && blink)) pong_score(pong.score(s), s, TFT_LIGHTGREY);
+  // raquetes e bola
+  canvas.fillRect(PongGame::LEFT_X, (int)pong.paddle_y(0), PongGame::PADDLE_W, PongGame::PADDLE_H, TFT_WHITE);
+  canvas.fillRect(PongGame::RIGHT_X, (int)pong.paddle_y(1), PongGame::PADDLE_W, PongGame::PADDLE_H, TFT_WHITE);
+  if (pong.ball_visible())
+    canvas.fillRect((int)pong.ball_x(), (int)pong.ball_y(), PongGame::BALL, PongGame::BALL, TFT_WHITE);
 }
 
 // ===================================================================
@@ -667,8 +609,7 @@ void ss_clock_draw() {
 // ===================================================================
 static const Screensaver SCREENSAVERS[] = {
   { "Atari", atari_init, atari_frame, 40 },
-  { "Bolas", balls_init, balls_frame, 20 },
-  { "Pong", pong_init, pong_frame, 20 },
+  { "Pong", pong_init, pong_frame, 20 },   // ocupa a posição das antigas "Bolas"
   { "Asteroides", asteroids_init, asteroids_frame, 35 },
   { "Estrelas", stars_init, stars_frame, 30 },
   { "Vida", gol_init, gol_frame, 90 },
