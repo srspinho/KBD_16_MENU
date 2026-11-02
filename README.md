@@ -29,7 +29,7 @@ Este projeto transforma um **Raspberry Pi Pico (RP2040 ou RP2350)** num intermed
 - Camada Fn: com Caps Lock segurado, H/J/K/L viram setas, 1–0 viram F1–F10, etc.
 - Macros: um atalho digita um texto.
 - Relógio: ajuste pelo menu ou módulo RTC DS3231 opcional.
-- Novos screensavers: Pong, Estrelas em dobra espacial, foguetes nos Fogos e Relógio.
+- Novos screensavers: Pong (simulação do jogo clássico, no lugar das Bolas), Estrelas em dobra espacial, foguetes nos Fogos e Relógio.
 - Menu com auto-repetição acelerada, barra de rolagem, confirmação para ações perigosas e fechamento automático.
 - "Modo gravação": entra no BOOTSEL pelo menu, sem precisar apertar o botão da placa.
 - Testes automáticos da lógica do teclado, que rodam no PC (`test/host`).
@@ -101,7 +101,7 @@ CONFIGURACOES
 - **Lembrete de pausa:** avisa depois de X minutos de digitação contínua. Cinco minutos sem digitar contam como pausa.
 
 ### Screensavers
-Atari (arco-íris), Bolas, Pong, Asteroides, Estrelas, Vida (Game of Life), Matrix, Pac-Man, Fogos, Aquário, Relógio, ou **Todos** (rotação automática).
+Atari (arco-íris), Pong, Asteroides, Estrelas, Vida (Game of Life), Matrix, Pac-Man, Fogos, Aquário, Relógio, ou **Todos** (rotação automática).
 
 ### Relógio ⏰
 O dispositivo **não consegue obter a hora do PC sem um programa rodando no PC**, porque o protocolo de teclado/mouse (HID) não transporta data e hora. Por isso há duas opções:
