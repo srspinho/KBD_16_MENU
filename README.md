@@ -153,9 +153,9 @@ Também traz os Gerbers prontos para encomendar, a lista de componentes e o esqu
 | JOY_LEFT | 6 | |
 | RTC SDA *(opcional)* | 26 | I2C1 |
 | RTC SCL *(opcional)* | 27 | I2C1 |
-| Buzzer *(opcional)* | 8 | via transistor; `PIN_BUZZER` em `config.h` (-1 = sem buzzer) |
+| Buzzer *(opcional)* | 8 | via transistor; `PIN_BUZZER` em `kbd_config.h` (-1 = sem buzzer) |
 
-Todos os pinos (exceto os do display) ficam em **`config.h`**.
+Todos os pinos (exceto os do display) ficam em **`kbd_config.h`**.
 
 ## 💻 Como compilar
 
@@ -178,7 +178,7 @@ Para atualizar o firmware depois, use *Menu > Sistema > Modo gravacao* e copie o
 | Arquivo | Função |
 |---|---|
 | `KBD_COLOR_16_MENU.ino` | Só chama `app_*` (core 0) e `bridge_*` (core 1) |
-| `config.h` | Pinos e opções de hardware |
+| `kbd_config.h` | Pinos e opções de hardware |
 | `usb_bridge.*` | **Core 1:** USB host, remapeamento, camada Fn, macros, fila de envio ao PC, LEDs |
 | `shared.*` | Filas entre os núcleos (sem travas) |
 | `keymap.*` | Tabelas de remapeamento, macros, camada e nomes das teclas |

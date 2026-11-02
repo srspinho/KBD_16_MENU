@@ -1,5 +1,5 @@
 #include "keymap.h"
-#include "config.h"
+#include "kbd_config.h"
 
 // ===================================================================
 //  REMAPEAMENTOS  (ativar/desativar no menu: Teclado > Remapear)
@@ -25,7 +25,7 @@ const MacroRule MACRO_RULES[] = {
 const uint8_t MACRO_COUNT = sizeof(MACRO_RULES) / sizeof(MACRO_RULES[0]);
 
 // ===================================================================
-//  CAMADA Fn  (segure LAYER_KEY, definida em config.h)
+//  CAMADA Fn  (segure LAYER_KEY, definida em kbd_config.h)
 // ===================================================================
 const LayerRule LAYER_RULES[] = {
   { HID_KEY_H, HID_KEY_ARROW_LEFT },

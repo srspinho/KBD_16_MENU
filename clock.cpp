@@ -1,5 +1,5 @@
 #include "clock.h"
-#include "config.h"
+#include "kbd_config.h"
 
 #if RTC_ENABLED
 #include <Wire.h>

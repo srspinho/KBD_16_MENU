@@ -3,7 +3,7 @@
 #include "settings.h"
 #include "screensavers.h"
 #include "clock.h"
-#include "config.h"
+#include "kbd_config.h"
 
 // ===================================================================
 //  TIPOS

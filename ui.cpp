@@ -1,6 +1,6 @@
 #include "ui.h"
 #include "display.h"
-#include "config.h"
+#include "kbd_config.h"
 #include "stats.h"
 #include "clock.h"
 #include "pomodoro.h"

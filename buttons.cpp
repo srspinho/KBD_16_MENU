@@ -1,5 +1,5 @@
 #include "buttons.h"
-#include "config.h"
+#include "kbd_config.h"
 
 static const uint8_t PINS[BTN_COUNT] = { JOY_UP, JOY_DOWN, JOY_LEFT, JOY_RIGHT, JOY_OK };
 static const uint32_t DEBOUNCE_MS = 25;

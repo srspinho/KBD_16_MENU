@@ -6,7 +6,7 @@
  * e watchdog.
  *********************************************************************/
 #include "app.h"
-#include "config.h"
+#include "kbd_config.h"
 #include "shared.h"
 #include "usb_bridge.h"
 #include "settings.h"

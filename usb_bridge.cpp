@@ -12,7 +12,7 @@
 #include "pio_usb.h"  // antes do TinyUSB (ver comentário no .ino)
 #include "Adafruit_TinyUSB.h"
 #include "usb_bridge.h"
-#include "config.h"
+#include "kbd_config.h"
 #include "shared.h"
 #include "keymap.h"
 #include <pico/mutex.h>

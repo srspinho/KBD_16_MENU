@@ -8,7 +8,7 @@
 #include "display.h"
 #include "settings.h"
 #include "clock.h"
-#include "config.h"
+#include "kbd_config.h"
 #include "atari.h"
 #include "RobotoMono12pt7b.h"
 #include "pong_game.h"

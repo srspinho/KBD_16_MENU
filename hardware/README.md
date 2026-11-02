@@ -8,7 +8,7 @@ Placa-base para o **Waveshare RP2350-Zero**, que também aceita o **RP2040-Zero*
 - o relógio RTC, com bateria;
 - o buzzer.
 
-A pinagem é a mesma do firmware (`config.h`), então não é preciso mudar nada no código.
+A pinagem é a mesma do firmware (`kbd_config.h`), então não é preciso mudar nada no código.
 
 | Frente | Verso |
 |---|---|
@@ -99,7 +99,7 @@ Alguns dados vieram de bibliotecas e fichas genéricas e não dá para confirmar
 - **Placa:** Waveshare RP2350 Zero.
 - **USB Stack:** Adafruit TinyUSB.
 - **CPU Speed: 120 MHz.** O padrão do RP2350 (150 MHz) **não funciona** com o USB host. Se esquecer, o firmware mostra um aviso na tela.
-- O buzzer já está configurado no GP8 (`PIN_BUZZER` em `config.h`).
+- O buzzer já está configurado no GP8 (`PIN_BUZZER` em `kbd_config.h`).
 
 ## Alterar a placa
 

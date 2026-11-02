@@ -1,12 +1,12 @@
 /*********************************************************************
- * config.h - Configuração de HARDWARE e opções de compilação
+ * kbd_config.h - Configuração de HARDWARE e opções de compilação
  *
  * Tudo que depende da sua montagem física fica aqui. As preferências
  * do usuário (brilho, screensaver, etc.) ficam em settings.h e são
  * ajustadas pelo menu e gravadas na flash.
  *********************************************************************/
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef KBD_CONFIG_H
+#define KBD_CONFIG_H
 
 #define FW_VERSION "3.0"
 

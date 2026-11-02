@@ -11,7 +11,7 @@
  *               ATENÇÃO: no RP2350 o padrão é 150 MHz, que NÃO funciona.
  *   USB Stack:  Adafruit TinyUSB
  *
- * Pinos e opções de hardware: config.h
+ * Pinos e opções de hardware: kbd_config.h
  *********************************************************************/
 // pio_usb.h precisa vir antes de qualquer include do TinyUSB: é assim que
 // o Adafruit TinyUSB detecta a biblioteca Pico-PIO-USB e ativa o USB host.
